@@ -1,0 +1,15 @@
+\name{gsi_simBinaryPath}
+\alias{gsi_simBinaryPath}
+\title{check what type of OS and then figure out the path to the gsi_sim executable appropriately}
+\usage{
+  gsi_simBinaryPath()
+}
+\description{
+  \code{gsi_simBinaryPath} checks to see if you are running
+  in windows or Mac and then it looks for the executable
+  file for gsi_sim in the appropriate place in the package
+  directory.  If it doesn't find it, it notes the error and
+  stops.  If the platform is not Mac or Windows, it also
+  throws an error.
+}
+
