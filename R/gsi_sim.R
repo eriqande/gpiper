@@ -34,17 +34,19 @@ gsi_simBinaryPath <- function() {
 #' @param arg.string a text string which includes all the options to send to gsi_sim
 #' @param stdout.to path to redirect gsi_sim's standard output (stdout) to
 #' @param stderr.to path to redicted gsi_sim's standard error to
-gsi_Run_gsi_sim <- function(arg.string, stdout.to="GSI_SIM_Dumpola.txt", stderr.to="GSI_SIM_Stderr.txt") {
+#' @param ...  extra variables that get passed to system2
+gsi_Run_gsi_sim <- function(arg.string, stdout.to="GSI_SIM_Dumpola.txt", stderr.to="GSI_SIM_Stderr.txt", ...) {
 	
 	call.str <- paste(gsi_simBinaryPath(), arg.string)
-	file.remove(stdout.to)
-	file.remove(stderr.to)
+	if(file.exists(stdout.to)) file.remove(stdout.to)
+	if(file.exists(stderr.to)) file.remove(stderr.to)
 	print(paste("Sending the following command to system2:",call.str))
 	print(paste("Launching at:", date()))
 	system2(command=gsi_simBinaryPath(),
 			args=arg.string,
 			stdout=stdout.to,
-			stderr=stderr.to)
+			stderr=stderr.to,
+			...)
 	print(paste("Done at", date()))
 	if(length(readLines("GSI_SIM_Stderr.txt"))>0) {		
 		stop(paste(c("Bad News! gsi_sim produced errors as follows:\n", readLines("GSI_SIM_Stderr.txt")), collapse="\n"))
@@ -78,6 +80,31 @@ gPdf2gsi.sim <- function(d, pop.ize.them=NULL, outfile="gsi_sim_file.txt") {
     }
     )
   }	
+}
+
+
+#' create a reporting units file for the gsi_sim program
+#' 
+#' Given a character vector \code{pops} of unique population names that are to be in a gsi_sim baseline
+#' file and a factor of the same length, \code{grps} that denotes the reporting
+#' group to which each population belongs. This function writes that information out to
+#' the \code{repufile} that can be read by gsi_sim
+#' 
+#'   @param pops character vector of populations in the baseline
+#'   @param grps factor parallel to pops that denotes the reporting group of each pop in pops
+#'   @param repufile the name of the file to write the reporting units file to  
+gsi_WriteReportingUnitsFile <- function(pops, grps, repufile="repunits.txt") {
+  if(repufile != "") {
+    unlink(repufile) # make sure that it is empty when we start appending to it 
+  }
+  if(anyDuplicated(pops)) stop("Duplicated population names in pops argument to gsi_WriteReportingUnitsFile")
+  rl <- split(pops, grps)
+  
+  catchit <- lapply(names(rl), function(x) {
+    write(paste("REPUNIT", x), file=repufile, append=T)
+    write(cbind(paste("\t", rl[[x]], sep="")), file=repufile, append=T)
+  }
+  ) 
 }
 
 
@@ -174,3 +201,66 @@ gsi_simAssTableVariousCutoffs <- function(fp, mc, mp, cutoffs=seq(0,.95, by=.05)
   }
   )
 }
+
+
+
+
+
+#' run  gsi_sim self-assignment exercises using different sets of loci
+#'
+#' given the baseline in the data frame B which is in \code{\link{gPipe.data.frame}} format
+#' and a list of one or more sets of loci to use, this function computes self
+#' assignments of the fish in the baseline for each set of loci.  Some day I will
+#' figure out how to parallelize this with mclapply, but for now I just use lapply---there
+#' seemed to be some interaction between system2 and mclapply, or something...
+#'
+#' @param B   a genetic baseline in \code{\link{gPipe.data.frame}} format
+#' @param L   a list of vectors of names of loci that are to be used.  The name of each locus 
+#'  					to be used should appear just once.  Obviously these names must correspond to locus
+#'						names in the data frame B.  Note that you don't add the ".1"s to the names of the loci.
+#'						If L is NULL (the default) then it is assumed that B contains only genotype data and the
+#'						names of the loci are inferred from that.
+#' @param pops 	a factor vector of populations each individual in B shall belong to.  levels of the
+#'							factor should be in the order that these should appear in.  pops.f must have length
+#'							equal to the number of rows of B
+#' @param dir.to.use the directory to do the gsi_sim stuff in.  By default it is the current
+#' 							directory, but you could use a tempfile() if you wanted to.
+gsi.a.SelfAssign <- function(B, L=NULL, pops.f, dir.to.use=NULL) {
+	if(is.null(L)) L <- list(names(B)[c(T,F)])  # this picks out the odd column names
+	if(length(L)==0) stop("list of locus sets has zero length") 
+	if(any(duplicated(names(L)))==T) stop(paste("duplicate locus set names in L:", names(L)[duplicated(names(L))]))
+	if(length(pops.f) != nrow(B)) stop("Length of pops.f must be equal to nrow(B)")
+	if(!is.null(dir.to.use)) {
+		td = dir.to.use
+		if(!file.exists(td)) dir.create(td)
+		curd <- getwd()
+		setwd(td)
+	} else {
+		td <- getwd()
+	}
+	
+	cols <- lapply(L, function(x) paste(rep(x, each=2), c("", ".1"), sep="")) # these include the column names with the .1's
+	
+	# now check to make sure the requested locus names exist:
+	notThereLoci <- sort(unique(unlist(lapply(cols, function(x) setdiff(x, names(B))))))
+	if(length(notThereLoci>0)) stop(paste(c("Requested locus columns not found in B: ", notThereLoci), collapse=" "))
+	
+	# just say where we are going to run gsi_sim
+	print(paste("Running gsi_sim in", td))
+	
+	res <- lapply(cols, function(x) {
+			
+			gPdf2gsi.sim(B[,x], pops.f)  # make the gsi_sim data file with just the requested loci
+			gsi_Run_gsi_sim("-b gsi_sim_file.txt --self-assign") # do the self-assignment
+			SA <- gsi.simSelfAss2DF(file="GSI_SIM_Dumpola.txt")$Post # get the self-assignment posteriors
+			# return a list that includes the loci used and SA
+			list(LociUsed=x[c(T,F)], SelfAss=SA)
+		})
+		if(!is.null(dir.to.use)) setwd(curd)
+#		names(res) <- names(cols)
+		class(res) <- "SelfAssResult"  # give this list a class so that we can check for it when we summarize these by different reporting units
+		res
+}
+
+
+
