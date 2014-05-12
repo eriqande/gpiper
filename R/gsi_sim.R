@@ -5,6 +5,7 @@
 #' it looks for the executable file for gsi_sim in the appropriate place in the package
 #' directory.  If it doesn't find it, it notes the error and stops.  If the platform
 #' is not Mac or Windows, it also throws an error. 
+#' @export
 gsi_simBinaryPath <- function() {
   if(.Platform$OS.type=="windows") {
      gspath <- file.path(system.file(package="gpiper"), "bin/gsi_sim.exe")
@@ -35,6 +36,7 @@ gsi_simBinaryPath <- function() {
 #' @param stdout.to path to redirect gsi_sim's standard output (stdout) to
 #' @param stderr.to path to redicted gsi_sim's standard error to
 #' @param ...  extra variables that get passed to system2
+#' @export
 gsi_Run_gsi_sim <- function(arg.string, stdout.to="GSI_SIM_Dumpola.txt", stderr.to="GSI_SIM_Stderr.txt", ...) {
 	
 	call.str <- paste(gsi_simBinaryPath(), arg.string)
@@ -65,6 +67,7 @@ gsi_Run_gsi_sim <- function(arg.string, stdout.to="GSI_SIM_Dumpola.txt", stderr.
 #' @param d  the data frame.  See documentation for \code{gPipe.data.frame} for format
 #' @param pop.ize.them vector that should be of length \code{nrow(d)} that gives the populations in which the individuals belong.  It this is a factor, then populations are placed in the gsi_sim output file according to the order in the \code{levels} attribute of the factor.
 #' @param outfile path to the output file 
+#' @export
 gPdf2gsi.sim <- function(d, pop.ize.them=NULL, outfile="gsi_sim_file.txt") {
   write(dim(d)/c(1,2), outfile)
   write(cbind(names(d)[seq(1, ncol(d), 2)]), outfile, append=T)
@@ -93,6 +96,7 @@ gPdf2gsi.sim <- function(d, pop.ize.them=NULL, outfile="gsi_sim_file.txt") {
 #'   @param pops character vector of populations in the baseline
 #'   @param grps factor parallel to pops that denotes the reporting group of each pop in pops
 #'   @param repufile the name of the file to write the reporting units file to  
+#'   @export
 gsi_WriteReportingUnitsFile <- function(pops, grps, repufile="repunits.txt") {
   if(repufile != "") {
     unlink(repufile) # make sure that it is empty when we start appending to it 
@@ -117,6 +121,7 @@ gsi_WriteReportingUnitsFile <- function(pops, grps, repufile="repunits.txt") {
 #' the numbers off them.
 #' 
 #' @param file the path to the gsi_sim output file
+#' @export
 gsi.simSelfAss2DF <- function(file="self-ass-output.txt") {
   x <- readLines(file)
   x1<-x[grep("UNSORTED_SELF_ASS_LIKE_GC_CSV:", x)]  # get just the lines we want
@@ -154,6 +159,7 @@ gsi.simSelfAss2DF <- function(file="self-ass-output.txt") {
 #' from gsi_sim (with rownames=1)
 #' @param pops.str names of the populations that are the column names of x
 #' @param rep.units  factor vector of same length as pops.str which given the reporting units of the populations in pops.str
+#' @export
 gsi_aggScoresByRepUnit <- function(x, pops.str, rep.units) {
   other.cols <- x[ !(names(x) %in% pops.str) ]
   grps <- split(pops.str, rep.units)
@@ -170,6 +176,7 @@ gsi_aggScoresByRepUnit <- function(x, pops.str, rep.units) {
 #' returns the maximum posterior associated with that assignment
 #' @param d data frame of posterior probabilities like that obtained by reading "pop_pofz_full_em_mle.txt" with rownames=1
 #' @param columns  not sure what this is for but i think it lets you select only some columns from the data frame d
+#' @export
 gsi_simMaxColumnAndPost <- function(d, columns) {
   tmp <- as.matrix(d[,columns])
   nam <- colnames(tmp)
@@ -190,6 +197,7 @@ gsi_simMaxColumnAndPost <- function(d, columns) {
 #' @param mc factor giving where the individual was assigned to
 #' @param mp the value of the posterior with which the individual was assigned
 #' @param cutoffs vector of cutoff values to use
+#' @export
 gsi_simAssTableVariousCutoffs <- function(fp, mc, mp, cutoffs=seq(0,.95, by=.05)) {
   names(cutoffs) <- paste("Cutoff",cutoffs, sep="_")
   lapply(cutoffs, function(x) {
@@ -225,6 +233,7 @@ gsi_simAssTableVariousCutoffs <- function(fp, mc, mp, cutoffs=seq(0,.95, by=.05)
 #'							equal to the number of rows of B
 #' @param dir.to.use the directory to do the gsi_sim stuff in.  By default it is the current
 #' 							directory, but you could use a tempfile() if you wanted to.
+#' @export
 gsi.a.SelfAssign <- function(B, L=NULL, pops.f, dir.to.use=NULL) {
 	if(is.null(L)) L <- list(names(B)[c(T,F)])  # this picks out the odd column names
 	if(length(L)==0) stop("list of locus sets has zero length") 

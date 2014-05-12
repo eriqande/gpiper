@@ -1,9 +1,11 @@
 Package: gpiper
 Type: Package
-Title: Genetic analysis pipelines from SWFSC's Molecular Ecology and Genetic Analysis Team
+Title: Genetic analysis pipelines from SWFSC's Molecular Ecology and Genetic
+    Analysis Team
 Version: 0.1
 Date: 2013-11-12
 Author: Eric C. Anderson
 Maintainer: Eric C. Anderson  <eric.anderson@noaa.gov>
 Description: Tools for doing population genetic analyses in a pipeline.
 License: GPL-3
+Roxygen: list(wrap = FALSE)
