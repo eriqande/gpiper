@@ -42,7 +42,7 @@ gsi_Run_gsi_sim <- function(arg.string, stdout.to="GSI_SIM_Dumpola.txt", stderr.
 	call.str <- paste(gsi_simBinaryPath(), arg.string)
 	if(file.exists(stdout.to)) file.remove(stdout.to)
 	if(file.exists(stderr.to)) file.remove(stderr.to)
-	print(paste("Sending the following command to system2:",call.str))
+	print(paste("Sending the following command to system2:",paste(call.str, collapse=" ")))
 	print(paste("Launching at:", date()))
 	system2(command=gsi_simBinaryPath(),
 			args=arg.string,
