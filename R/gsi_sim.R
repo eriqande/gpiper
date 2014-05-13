@@ -39,10 +39,10 @@ gsi_simBinaryPath <- function() {
 #' @export
 gsi_Run_gsi_sim <- function(arg.string, stdout.to="GSI_SIM_Dumpola.txt", stderr.to="GSI_SIM_Stderr.txt", ...) {
 	
-	call.str <- paste(gsi_simBinaryPath(), arg.string)
+	call.str <- paste(gsi_simBinaryPath(), paste(arg.string, collapse=" "))
 	if(file.exists(stdout.to)) file.remove(stdout.to)
 	if(file.exists(stderr.to)) file.remove(stderr.to)
-	print(paste("Sending the following command to system2:",paste(call.str, collapse=" ")))
+	print(paste("Sending the following command to system2:", call.str))
 	print(paste("Launching at:", date()))
 	system2(command=gsi_simBinaryPath(),
 			args=arg.string,
