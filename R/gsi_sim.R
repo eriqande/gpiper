@@ -50,7 +50,7 @@ gsi_Run_gsi_sim <- function(arg.string, stdout.to="GSI_SIM_Dumpola.txt", stderr.
 			stderr=stderr.to,
 			...)
 	print(paste("Done at", date()))
-	if(length(readLines("GSI_SIM_Stderr.txt"))>0) {		
+	if(length(readLines(stderr.to))>0) {		
 		stop(paste(c("Bad News! gsi_sim produced errors as follows:\n", readLines("GSI_SIM_Stderr.txt")), collapse="\n"))
 	}		
 }
@@ -228,7 +228,7 @@ gsi_simAssTableVariousCutoffs <- function(fp, mc, mp, cutoffs=seq(0,.95, by=.05)
 #'						names in the data frame B.  Note that you don't add the ".1"s to the names of the loci.
 #'						If L is NULL (the default) then it is assumed that B contains only genotype data and the
 #'						names of the loci are inferred from that.
-#' @param pops 	a factor vector of populations each individual in B shall belong to.  levels of the
+#' @param pops.f 	a factor vector of populations each individual in B shall belong to.  levels of the
 #'							factor should be in the order that these should appear in.  pops.f must have length
 #'							equal to the number of rows of B
 #' @param dir.to.use the directory to do the gsi_sim stuff in.  By default it is the current
@@ -272,4 +272,73 @@ gsi.a.SelfAssign <- function(B, L=NULL, pops.f, dir.to.use=NULL) {
 }
 
 
+#' Does mixture simulations from a baseline given specified mixture proportions
+#' 
+#' The user can specify a gpiper input file and a vector of populations
+#' as well as a vector of proportions of populations and a size of sample
+#' and this will do all the leg-work do simulations with gsi_sim using 
+#' either the fixed-Pi or the Pi variants.  Currently it only extracts the
+#' mixing proportion estimates out of it.
+#' 
+#' @inheritParams  gsi.a.SelfAssign
+#' @param props  Vector of mixing proprtions parallel to the levels of pops.
+#' These are the true mixing proportions that you want to simulate from
+#' @param N the sample size of each sample you want to simulate. It will be approximate due to 
+#' rounding.  I could fix that eventually, but it is a bit of a hassle at the moment.
+#' @param Reps  Number of simulated samples you want to simulate
+#' @param fixed Logical.  True means use the --fixed-Pi version (so that the exact
+#' same number of fish are simulated each time.  False means that the origins of the fish
+#' in the simulated sample are drawn from the props (by using the --Pi option of gsi_sim))
+#' @param base_file_name The name for baseline file that will be created and passed to gsi_sim
+#' @param repu.f A factor vector that is parallel to the levels of pops.f, each entry giving the
+#' reporting unit that that particular level of pops.f belongs to.  This is used to aggregate the
+#' estimated mixing proportions over reporting groups.  If NULL then it doesn't get done.
+#' @param samp_unit What sampling unit to resample? Corresponds to gsi_sim's --samp_unit option.
+#' Allowable values are "genes", "loci", and "multilocus".
+#' @export
+gsi.mixtureSims <- function(B, pops.f, props, N, Reps, fixed = TRUE, base_file_name = "mix_sim_base.txt",
+                            repu.f = NULL, samp_unit = "genes") {
 
+  if(length(props) != length(levels(pops.f))) stop("Length of props and length of levels(pops.f) don't match!")
+  if(!is.null(repu.f) && length(repu.f) != length(levels(pops.f))) stop("Length of repu.f and length of levels(pops.f) don't match!")
+  
+  # make the gsi_sim baseline file we will need:
+  gPdf2gsi.sim(B, pop.ize.them = pops.f, outfile = base_file_name)
+  
+  # now, figure out what numbers we will use
+  if(fixed == TRUE) {
+    PICOMM <- "--fixed-Pi"
+    pis <- round(N * props)
+  } else {
+    PICOMM <- "--Pi"
+    pis <- props
+  }
+  
+  # now prepare the command lines with the --Pi's or --fixed-Pi's
+  pi.commands <- paste(as.vector(rbind("-n", levels(pops.f), PICOMM, pis, "--end-pop")), collapse = " ")
+  gsi.comm <- paste("-b", base_file_name, "--samp-unit", samp_unit, pi.commands, "-x", Reps, N, collapse = " ")
+  
+  # run gsi_sim
+  gsi_Run_gsi_sim(arg.string = gsi.comm, stdout.to="MIX_SIM_Dumpola.txt", stderr.to="MIX_SIM_Stderr.txt")
+  
+  # parse the result
+  x <- readLines("MIX_SIM_Dumpola.txt")
+  mles <- x[grep("MIXFISH_PI_MLES:", x)]  # these are the MLES of Pi for each rep.
+  mles <- gsub(pattern = "MIXFISH_PI_MLES: *", replacement = "", mles)  # get the Text off the front of it
+  sim.mles <- simplify2array(strsplit(x = mles, "  *"))  # make them columns in an array
+  rownames(sim.mles) <- levels(pops.f)
+  mode(sim.mles) <- "numeric"  # make sure they are not strings any longer
+  
+  true_pi <- pis/sum(pis)
+  names(true_pi) <- levels(pops.f)
+  
+  # now, if we have reporting units use those to get the estimated mixing proportions by reporting unit
+  ret <- list(true_pi = true_pi, estimated_pi = sim.mles, repu_true_pi = NULL, repu_estimated_pi = NULL)
+  if(!is.null(repu.f)) {
+    ret$repu_true_pi <- sapply(levels(repu.f), function(y) sum(true_pi[which(repu.f==y)]))
+    ret$repu_estimated_pi <- t(sapply(levels(repu.f), function(y) colSums(sim.mles[which(repu.f==y), ])))
+  }
+  
+  ret
+  
+}
